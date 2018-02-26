@@ -91,9 +91,9 @@ class CTRexClient(object):
         self.result_obj = CTRexResult(max_history_size, filtered_latency_amount)
         self.history = jsonrpclib.history.History()
         self.master_daemon_path = "http://{hostname}:{port}/".format(hostname=self.trex_host, port=master_daemon_port)
-        self.master_daemon = jsonrpclib.Server(self.master_daemon_path, history=self.history, timeout=timeout)
+        self.master_daemon = jsonrpclib.Server(self.master_daemon_path, history=self.history)
         self.trex_server_path = "http://{hostname}:{port}/".format(hostname=self.trex_host, port=trex_daemon_port)
-        self.server = jsonrpclib.Server(self.trex_server_path, history=self.history, timeout=timeout)
+        self.server = jsonrpclib.Server(self.trex_server_path, history=self.history)
         self.debug_image = debug_image
         self.trex_args = trex_args
         self.sample_to_run_finish = self.sample_until_finish  # alias for legacy
@@ -120,7 +120,7 @@ class CTRexClient(object):
             if status['state'] == TRexStatus.Idle:
                 raise Exception('TRex is back to Idle state, verbose output:\n%s' % status['verbose'])
             time.sleep(poll_interval)
-        raise TimeoutError("Timeout of %ss happened during wait for TRex to become in 'Running' state" % timeout)
+        raise Exception("Timeout of %ss happened during wait for TRex to become in 'Running' state" % timeout)
 
     def start_trex(self, f, d, block_to_success=True, timeout=40, user=None, trex_development=False,
                    **trex_cmd_options):
