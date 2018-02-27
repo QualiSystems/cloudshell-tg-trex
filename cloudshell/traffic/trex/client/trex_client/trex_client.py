@@ -15,18 +15,11 @@ import json
 import traceback
 import signal
 
-try:
-    from . import outer_packages
-    from .trex_status_e import TRexStatus
-    from .trex_exceptions import *
-    from .trex_exceptions import exception_handler
-    from .general_utils import *
-except Exception as e: # is __main__
-    import outer_packages
-    from trex_status_e import TRexStatus
-    from trex_exceptions import *
-    from trex_exceptions import exception_handler
-    from general_utils import *
+
+from trex_status_e import TRexStatus
+from trex_exceptions import *
+from trex_exceptions import exception_handler
+from general_utils import *
 
 # external libs
 import jsonrpclib
@@ -38,7 +31,9 @@ class CTRexClient(object):
     This class defines the client side of the RESTfull interaction with TRex
     """
 
-    def __init__(self, trex_host, max_history_size = 100, filtered_latency_amount = 0.001, trex_daemon_port = 8090, master_daemon_port = 8091, trex_zmq_port = 4500, verbose = False, debug_image = False, trex_args = '', timeout = 30):
+    def __init__(self, trex_host, max_history_size=100, filtered_latency_amount=0.001, trex_daemon_port=8090,
+                 master_daemon_port=8091, trex_zmq_port=4500, verbose=False, debug_image=False, trex_args='',
+                 timeout=30):
         """ 
         Instantiate a TRex client object, and connecting it to listening daemon-server
 
@@ -83,30 +78,29 @@ class CTRexClient(object):
 
         """
         try:
-            self.trex_host          = socket.gethostbyname(trex_host)
-        except: # give it another try
-            self.trex_host          = socket.gethostbyname(trex_host)
-        self.trex_daemon_port       = trex_daemon_port
-        self.master_daemon_port     = master_daemon_port
-        self.trex_zmq_port          = trex_zmq_port
-        self.seq                    = None
-        self._last_sample           = time.time()
-        self.__default_user         = get_current_user()
-        self.verbose                = verbose
-        self.result_obj             = CTRexResult(max_history_size, filtered_latency_amount)
-        self.history                = jsonrpclib.history.History()
-        self.master_daemon_path     = "http://{hostname}:{port}/".format( hostname = self.trex_host, port = master_daemon_port )
-        self.master_daemon          = jsonrpclib.Server(self.master_daemon_path, history = self.history, timeout = timeout)
-        self.trex_server_path       = "http://{hostname}:{port}/".format( hostname = self.trex_host, port = trex_daemon_port )
-        self.server                 = jsonrpclib.Server(self.trex_server_path, history = self.history, timeout = timeout)
-        self.debug_image            = debug_image
-        self.trex_args              = trex_args
-        self.sample_to_run_finish   = self.sample_until_finish # alias for legacy
+            self.trex_host = socket.gethostbyname(trex_host)
+        except:  # give it another try
+            self.trex_host = socket.gethostbyname(trex_host)
+        self.trex_daemon_port = trex_daemon_port
+        self.master_daemon_port = master_daemon_port
+        self.trex_zmq_port = trex_zmq_port
+        self.seq = None
+        self._last_sample = time.time()
+        self.__default_user = get_current_user()
+        self.verbose = verbose
+        self.result_obj = CTRexResult(max_history_size, filtered_latency_amount)
+        self.history = jsonrpclib.history.History()
+        self.master_daemon_path = "http://{hostname}:{port}/".format(hostname=self.trex_host, port=master_daemon_port)
+        self.master_daemon = jsonrpclib.Server(self.master_daemon_path, history=self.history)
+        self.trex_server_path = "http://{hostname}:{port}/".format(hostname=self.trex_host, port=trex_daemon_port)
+        self.server = jsonrpclib.Server(self.trex_server_path, history=self.history)
+        self.debug_image = debug_image
+        self.trex_args = trex_args
+        self.sample_to_run_finish = self.sample_until_finish  # alias for legacy
 
-
-    def add (self, x, y):
+    def add(self, x, y):
         try:
-            return self.server.add(x,y)
+            return self.server.add(x, y)
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
         except ProtocolError:
@@ -115,7 +109,7 @@ class CTRexClient(object):
             self.prompt_verbose_data()
 
     # internal method which polls for TRex state until it's running or timeout happens
-    def _block_to_success(self, timeout, poll_interval = 1):
+    def _block_to_success(self, timeout, poll_interval=1):
         if not timeout:
             raise ValueError("'timeout' should be positive integer in case of 'block_to_success'")
         start_time = time.time()
@@ -126,9 +120,10 @@ class CTRexClient(object):
             if status['state'] == TRexStatus.Idle:
                 raise Exception('TRex is back to Idle state, verbose output:\n%s' % status['verbose'])
             time.sleep(poll_interval)
-        raise TimeoutError("Timeout of %ss happened during wait for TRex to become in 'Running' state" % timeout)
+        raise Exception("Timeout of %ss happened during wait for TRex to become in 'Running' state" % timeout)
 
-    def start_trex (self, f, d, block_to_success = True, timeout = 40, user = None, trex_development = False, **trex_cmd_options):
+    def start_trex(self, f, d, block_to_success=True, timeout=40, user=None, trex_development=False,
+                   **trex_cmd_options):
         """
         Request to start a TRex run on server in stateful mode.
 
@@ -168,15 +163,16 @@ class CTRexClient(object):
         except ValueError:
             raise ValueError('d parameter must be integer, specifying how long TRex run.')
 
-        trex_cmd_options.update( {'f' : f, 'd' : d} )
+        trex_cmd_options.update({'f': f, 'd': d})
         self.result_obj.latency_checked = 'l' in trex_cmd_options
         if 'k' in trex_cmd_options:
-            timeout += int(trex_cmd_options['k']) # during 'k' seconds TRex stays in 'Starting' state
+            timeout += int(trex_cmd_options['k'])  # during 'k' seconds TRex stays in 'Starting' state
 
         self.result_obj.clear_results()
         try:
             issue_time = time.time()
-            retval = self.server.start_trex(trex_cmd_options, user, False, None, False, self.debug_image, self.trex_args)
+            retval = self.server.start_trex(trex_cmd_options, user, False, None, False, self.debug_image,
+                                            self.trex_args)
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
         except ProtocolError:
@@ -187,14 +183,14 @@ class CTRexClient(object):
         if block_to_success:
             self._block_to_success(timeout)
 
-        if retval!=0:
-            self.seq = retval   # update seq num only on successful submission
+        if retval != 0:
+            self.seq = retval  # update seq num only on successful submission
             return True
-        else:   # TRex is has been started by another user
-            raise TRexInUseError('TRex is already being used by another user or process. Try again once TRex is back in IDLE state.')
+        else:  # TRex is has been started by another user
+            raise TRexInUseError(
+                'TRex is already being used by another user or process. Try again once TRex is back in IDLE state.')
 
-
-    def start_stateless(self, block_to_success = True, timeout = 40, user = None, **trex_cmd_options):
+    def start_stateless(self, block_to_success=True, timeout=40, user=None, **trex_cmd_options):
         """
         Request to start a TRex run on server in stateless mode.
 
@@ -238,14 +234,14 @@ class CTRexClient(object):
         if block_to_success:
             self._block_to_success(timeout)
 
-        if retval!=0:
-            self.seq = retval   # update seq num only on successful submission
+        if retval != 0:
+            self.seq = retval  # update seq num only on successful submission
             return True
-        else:   # TRex is has been started by another user
-            raise TRexInUseError('TRex is already being used by another user or process. Try again once TRex is back in IDLE state.')
+        else:  # TRex is has been started by another user
+            raise TRexInUseError(
+                'TRex is already being used by another user or process. Try again once TRex is back in IDLE state.')
 
-
-    def stop_trex (self):
+    def stop_trex(self):
         """
         Request to stop a TRex run on server.
 
@@ -273,7 +269,7 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-    def force_kill (self, confirm = True):
+    def force_kill(self, confirm=True):
         """
         Force killing of running TRex process (if exists) on the server.
 
@@ -315,7 +311,7 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-    def kill_all_trexes(self, timeout = 15):
+    def kill_all_trexes(self, timeout=15):
         """
         Kills running TRex processes (if exists) on the server, not only owned by current daemon.
         Raises exception upon error killing.
@@ -342,7 +338,6 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-
     def get_trex_cmds(self):
         """
         Gets list of running TRex pids and command lines.
@@ -358,7 +353,6 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-
     def get_trex_path(self):
         '''
         Returns TRex path on server
@@ -369,9 +363,8 @@ class CTRexClient(object):
             self._handle_AppError_exception(err.args[0])
         finally:
             self.prompt_verbose_data()
-        
 
-    def wait_until_kickoff_finish(self, timeout = 40):
+    def wait_until_kickoff_finish(self, timeout=40):
         """
         Block the client application until TRex changes state from 'Starting' to either 'Idle' or 'Running'
 
@@ -402,7 +395,7 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-    def is_running (self, dump_out = False):
+    def is_running(self, dump_out=False):
         """
         Poll for TRex running status.
 
@@ -428,22 +421,22 @@ class CTRexClient(object):
             res = self.get_running_info()
             if res == {}:
                 return False
-            if (dump_out != False) and (isinstance(dump_out, dict)):        # save received dump to given 'dump_out' pointer
+            if (dump_out != False) and (isinstance(dump_out, dict)):  # save received dump to given 'dump_out' pointer
                 dump_out.clear()
                 dump_out.update(res)
             return True
         except TRexWarning as err:
-            if err.code == -12:      # TRex is either still at 'Starting' state or in Idle state, however NO error occured
+            if err.code == -12:  # TRex is either still at 'Starting' state or in Idle state, however NO error occured
                 return False
         except TRexException:
             raise
         except ProtocolError as err:
             raise
-        #is printed by self.get_running_info()
-        #finally:
-        #    self.prompt_verbose_data()
+            # is printed by self.get_running_info()
+            # finally:
+            #    self.prompt_verbose_data()
 
-    def is_idle (self):
+    def is_idle(self):
         """
         Poll for TRex running status, check if TRex is in Idle state.
 
@@ -471,7 +464,7 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-    def get_trex_files_path (self):
+    def get_trex_files_path(self):
         """
         Fetches the local path in which files are stored when pushed to TRex server from client.
 
@@ -496,7 +489,7 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-    def get_running_status (self):
+    def get_running_status(self):
         """
         Fetches the current TRex status.
 
@@ -523,7 +516,7 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-    def get_running_info (self):
+    def get_running_info(self):
         """
         Performs single poll of TRex running data and process it into the result object (named `result_obj`).
 
@@ -545,8 +538,9 @@ class CTRexClient(object):
             # if requested in timeframe smaller than the original sample rate, return the last known data without interacting with server
             return self.result_obj.get_latest_dump()
         else:
-            try: 
-                latest_dump = json.loads( self.server.get_running_info() ) # latest dump is not a dict, but json string. decode it.
+            try:
+                latest_dump = json.loads(
+                    self.server.get_running_info())  # latest dump is not a dict, but json string. decode it.
                 self.result_obj.update_result_data(latest_dump)
                 return latest_dump
             except TypeError as inst:
@@ -558,7 +552,7 @@ class CTRexClient(object):
             finally:
                 self.prompt_verbose_data()
 
-    def sample_until_condition (self, condition_func, time_between_samples = 1):
+    def sample_until_condition(self, condition_func, time_between_samples=1):
         """
         Automatically sets ongoing sampling of TRex data, with sampling rate described by time_between_samples.
 
@@ -586,7 +580,7 @@ class CTRexClient(object):
 
         """
         # make sure TRex is running. raise exceptions here if any
-        self.wait_until_kickoff_finish()    
+        self.wait_until_kickoff_finish()
         try:
             while self.is_running():
                 results = self.get_result_obj()
@@ -602,7 +596,7 @@ class CTRexClient(object):
             # this could come from provided method 'condition_func'
             raise
 
-    def sample_until_finish (self, time_between_samples = 1):
+    def sample_until_finish(self, time_between_samples=1):
         """
         Automatically samples TRex data with sampling rate described by time_between_samples until TRex run finishes.
 
@@ -622,9 +616,9 @@ class CTRexClient(object):
             + ProtocolError, in case of error in JSON-RPC protocol.
 
         """
-        self.wait_until_kickoff_finish()    
-        
-        try: 
+        self.wait_until_kickoff_finish()
+
+        try:
             while self.is_running():
                 time.sleep(time_between_samples)
         except TRexWarning:
@@ -640,8 +634,8 @@ class CTRexClient(object):
 
         results = self.get_result_obj()
         return results
-            
-    def sample_x_seconds (self, sample_time, time_between_samples = 1):
+
+    def sample_x_seconds(self, sample_time, time_between_samples=1):
         """
         Automatically sets ongoing sampling of TRex data for sample_time seconds, with sampling rate described by time_between_samples.
         Does not stop the TRex afterwards!
@@ -675,9 +669,11 @@ class CTRexClient(object):
                 time.sleep(time_between_samples)
             else:
                 return self.get_result_obj()
-        raise UserWarning("TRex has stopped at %s seconds (before expected %s seconds)\nTry increasing test duration or decreasing sample_time" % (elapsed_time, sample_time))
+        raise UserWarning(
+            "TRex has stopped at %s seconds (before expected %s seconds)\nTry increasing test duration or decreasing sample_time" % (
+            elapsed_time, sample_time))
 
-    def get_result_obj (self, copy_obj = True):
+    def get_result_obj(self, copy_obj=True):
         """
         Returns the result object of the trex_client's instance. 
 
@@ -698,7 +694,7 @@ class CTRexClient(object):
         else:
             return self.result_obj
 
-    def is_reserved (self):
+    def is_reserved(self):
         """
         Checks if TRex is currently reserved to any user or not.
 
@@ -722,7 +718,7 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-    def get_trex_daemon_log (self):
+    def get_trex_daemon_log(self):
         """
         Get Trex daemon log.
 
@@ -746,7 +742,7 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-    def get_trex_log (self):
+    def get_trex_log(self):
         """
         Get TRex CLI output log
 
@@ -770,7 +766,7 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-    def get_trex_version (self):
+    def get_trex_version(self):
         """
         Get TRex version details.
 
@@ -805,7 +801,7 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-    def reserve_trex (self, user = None):
+    def reserve_trex(self, user=None):
         """
         Reserves the usage of TRex to a certain user.
 
@@ -828,7 +824,7 @@ class CTRexClient(object):
         """
         username = user or self.__default_user
         try:
-            return self.server.reserve_trex(user = username)
+            return self.server.reserve_trex(user=username)
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
         except ProtocolError:
@@ -836,7 +832,7 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-    def cancel_reservation (self, user = None):
+    def cancel_reservation(self, user=None):
         """
         Cancels a current reservation of TRex to a certain user.
 
@@ -858,10 +854,10 @@ class CTRexClient(object):
             + ProtocolError, in case of error in JSON-RPC protocol.
 
         """
-        
+
         username = user or self.__default_user
         try:
-            return self.server.cancel_reservation(user = username)
+            return self.server.cancel_reservation(user=username)
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
         except ProtocolError:
@@ -869,7 +865,7 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-    def get_files_list (self, path):
+    def get_files_list(self, path):
         """
         Gets a list of dirs and files either from /tmp/trex_files or path relative to TRex server.
 
@@ -885,7 +881,7 @@ class CTRexClient(object):
             + ProtocolError, in case of error in JSON-RPC protocol.
 
         """
-        
+
         try:
             return self.server.get_files_list(path)
         except AppError as err:
@@ -945,8 +941,7 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-
-    def push_files (self, filepaths):
+    def push_files(self, filepaths):
         """
         Pushes a file (or a list of files) to store locally on server. 
                 
@@ -971,12 +966,12 @@ class CTRexClient(object):
             paths_list = filepaths
         else:
             raise TypeError("filepaths argument must be of type str or list")
-        
+
         for filepath in paths_list:
             try:
                 if not os.path.exists(filepath):
                     raise IOError(errno.ENOENT, "The requested `{fname}` file wasn't found. Operation aborted.".format(
-                        fname = filepath) )
+                        fname=filepath))
                 else:
                     filename = os.path.basename(filepath)
                     with open(filepath, 'rb') as f:
@@ -1001,20 +996,21 @@ class CTRexClient(object):
 
         """
         cur_time = time.time()
-        if cur_time-self._last_sample < 0.5:
+        if cur_time - self._last_sample < 0.5:
             return False
         else:
             self._last_sample = cur_time
             return True
 
-    def call_server_mathod_safely (self, method_to_call):
+    def call_server_mathod_safely(self, method_to_call):
         try:
             return method_to_call()
         except socket.error as e:
             if e.errno == errno.ECONNREFUSED:
-                raise SocketError(errno.ECONNREFUSED, "Connection to TRex daemon server was refused. Please make sure the server is up.")
+                raise SocketError(errno.ECONNREFUSED,
+                                  "Connection to TRex daemon server was refused. Please make sure the server is up.")
 
-    def check_server_connectivity (self):
+    def check_server_connectivity(self):
         """
         Checks TRex daemon server for connectivity.
         """
@@ -1022,26 +1018,26 @@ class CTRexClient(object):
             socket.gethostbyname(self.trex_host)
             return self.server.connectivity_check()
         except socket.gaierror as e:
-            raise socket.gaierror(e.errno, "Could not resolve server hostname. Please make sure hostname entered correctly.")    
+            raise socket.gaierror(e.errno,
+                                  "Could not resolve server hostname. Please make sure hostname entered correctly.")
         except socket.error as e:
             if e.errno == errno.ECONNREFUSED:
-                raise socket.error(errno.ECONNREFUSED, "Connection to TRex daemon server was refused. Please make sure the server is up.")
+                raise socket.error(errno.ECONNREFUSED,
+                                   "Connection to TRex daemon server was refused. Please make sure the server is up.")
             raise
         finally:
             self.prompt_verbose_data()
 
-
     def master_add(self, x, y):
         ''' Sanity check for Master daemon '''
         try:
-            return self.master_daemon.add(x,y)
+            return self.master_daemon.add(x, y)
         except AppError as err:
             self._handle_AppError_exception(err.args[0])
         finally:
             self.prompt_verbose_data()
 
-
-    def check_master_connectivity (self):
+    def check_master_connectivity(self):
         '''
         Check Master daemon for connectivity.
         Return True upon success
@@ -1050,10 +1046,12 @@ class CTRexClient(object):
             socket.gethostbyname(self.trex_host)
             return self.master_daemon.check_connectivity()
         except socket.gaierror as e:
-            raise socket.gaierror(e.errno, "Could not resolve server hostname. Please make sure hostname entered correctly.")    
+            raise socket.gaierror(e.errno,
+                                  "Could not resolve server hostname. Please make sure hostname entered correctly.")
         except socket.error as e:
             if e.errno == errno.ECONNREFUSED:
-                raise socket.error(errno.ECONNREFUSED, "Connection to Master daemon was refused. Please make sure the server is up.")
+                raise socket.error(errno.ECONNREFUSED,
+                                   "Connection to Master daemon was refused. Please make sure the server is up.")
             raise
         finally:
             self.prompt_verbose_data()
@@ -1070,7 +1068,7 @@ class CTRexClient(object):
         finally:
             self.prompt_verbose_data()
 
-    def restart_trex_daemon(self, tries = 1):
+    def restart_trex_daemon(self, tries=1):
         '''
         Restart TRex server daemon. Useful after update.
         Will not fail if daemon is initially stopped.
@@ -1116,7 +1114,7 @@ class CTRexClient(object):
             self._handle_AppError_exception(err.args[0])
         finally:
             self.prompt_verbose_data()
-        
+
     def prompt_verbose_data(self):
         """
         This method prompts any verbose data available, only if `verbose` option has been turned on.
@@ -1140,8 +1138,6 @@ class CTRexClient(object):
         if self.verbose:
             print (print_str)
 
-
-    
     def _handle_AppError_exception(self, err):
         """
         This private method triggres the TRex dedicated exception generation in case a general ProtocolError has been raised.
@@ -1149,7 +1145,7 @@ class CTRexClient(object):
         # handle known exceptions based on known error codes.
         # if error code is not known, raise ProtocolError
         exc = exception_handler.gen_exception(err)
-        exc.__cause__ = None # remove "During handling of the above exception, another exception occurred:" in Python3.3+
+        exc.__cause__ = None  # remove "During handling of the above exception, another exception occurred:" in Python3.3+
         raise exc
 
 
@@ -1159,7 +1155,8 @@ class CTRexResult(object):
 
     Ontop to containing the results, this class offers easier data access and extended results processing options
     """
-    def __init__(self, max_history_size, filtered_latency_amount = 0.001):
+
+    def __init__(self, max_history_size, filtered_latency_amount=0.001):
         """ 
         Instatiate a TRex result object
 
@@ -1170,32 +1167,32 @@ class CTRexResult(object):
                 Ignore high latency for this ammount of packets. (by default take into account 99.9%)
 
         """
-        self._history = deque(maxlen = max_history_size)
+        self._history = deque(maxlen=max_history_size)
         self.clear_results()
         self.latency_checked = True
         self.filtered_latency_amount = filtered_latency_amount
         self.set_warmup_default()
 
-    def set_warmup_default (self):
+    def set_warmup_default(self):
         self.set_warmup(0.96)
 
-    def set_warmup (self,new_warmup_max):
+    def set_warmup(self, new_warmup_max):
         self.warmup_max = new_warmup_max
 
     def __repr__(self):
-        return ("Is valid history?       {arg}\n".format( arg = self.is_valid_hist() ) +
-                "Done warmup?            {arg}\n".format( arg = self.is_done_warmup() ) +
-                "Expected tx rate:       {arg}\n".format( arg = self.get_expected_tx_rate() ) +
-                "Current tx rate:        {arg}\n".format( arg = self.get_current_tx_rate() ) +
-                "Minimum latency:        {arg}\n".format( arg = self.get_min_latency() ) +
-                "Maximum latency:        {arg}\n".format( arg = self.get_max_latency() ) +
-                "Average latency:        {arg}\n".format( arg = self.get_avg_latency() ) +
-                "Average window latency: {arg}\n".format( arg = self.get_avg_window_latency() ) +
-                "Total drops:            {arg}\n".format( arg = self.get_total_drops() ) +
-                "Drop rate:              {arg}\n".format( arg = self.get_drop_rate() ) +
-                "History size so far:    {arg}\n".format( arg = len(self._history) ) )
+        return ("Is valid history?       {arg}\n".format(arg=self.is_valid_hist()) +
+                "Done warmup?            {arg}\n".format(arg=self.is_done_warmup()) +
+                "Expected tx rate:       {arg}\n".format(arg=self.get_expected_tx_rate()) +
+                "Current tx rate:        {arg}\n".format(arg=self.get_current_tx_rate()) +
+                "Minimum latency:        {arg}\n".format(arg=self.get_min_latency()) +
+                "Maximum latency:        {arg}\n".format(arg=self.get_max_latency()) +
+                "Average latency:        {arg}\n".format(arg=self.get_avg_latency()) +
+                "Average window latency: {arg}\n".format(arg=self.get_avg_window_latency()) +
+                "Total drops:            {arg}\n".format(arg=self.get_total_drops()) +
+                "Drop rate:              {arg}\n".format(arg=self.get_drop_rate()) +
+                "History size so far:    {arg}\n".format(arg=len(self._history)))
 
-    def get_expected_tx_rate (self):
+    def get_expected_tx_rate(self):
         """
         Fetches the expected TX rate in various units representation
 
@@ -1208,7 +1205,7 @@ class CTRexResult(object):
         """
         return self._expected_tx_rate
 
-    def get_current_tx_rate (self):
+    def get_current_tx_rate(self):
         """
         Fetches the current TX rate in various units representation
 
@@ -1221,7 +1218,7 @@ class CTRexResult(object):
         """
         return self._current_tx_rate
 
-    def get_max_latency (self):
+    def get_max_latency(self):
         """
         Fetches the maximum latency measured on each of the interfaces
 
@@ -1234,7 +1231,7 @@ class CTRexResult(object):
         """
         return self._max_latency
 
-    def get_min_latency (self):
+    def get_min_latency(self):
         """
         Fetches the minimum latency measured on each of the interfaces
 
@@ -1247,7 +1244,7 @@ class CTRexResult(object):
         """
         return self._min_latency
 
-    def get_is_latency_exists (self):
+    def get_is_latency_exists(self):
         """
         return True if latency information exists
 
@@ -1259,13 +1256,11 @@ class CTRexResult(object):
 
         """
         if self._min_latency != None:
-            return True;
+            return True
         else:
-            return False;
+            return False
 
-        
-
-    def get_jitter_latency (self):
+    def get_jitter_latency(self):
         """
         Fetches the jitter latency measured on each of the interfaces from the start of TRex run
 
@@ -1280,7 +1275,7 @@ class CTRexResult(object):
         """
         return self._jitter_latency
 
-    def get_avg_latency (self):
+    def get_avg_latency(self):
         """
         Fetches the average latency measured on each of the interfaces from the start of TRex run
 
@@ -1295,7 +1290,7 @@ class CTRexResult(object):
         """
         return self._avg_latency
 
-    def get_avg_window_latency (self):
+    def get_avg_window_latency(self):
         """
         Fetches the average latency measured on each of the interfaces from all the sampled currently stored in window.
 
@@ -1310,7 +1305,7 @@ class CTRexResult(object):
         """
         return self._avg_window_latency
 
-    def get_total_drops (self):
+    def get_total_drops(self):
         """
         Fetches the total number of drops identified from the moment TRex run began.
 
@@ -1322,8 +1317,8 @@ class CTRexResult(object):
 
         """
         return self._total_drops
-    
-    def get_drop_rate (self):
+
+    def get_drop_rate(self):
         """
         Fetches the most recent drop rate in pkts/sec units.
 
@@ -1336,7 +1331,7 @@ class CTRexResult(object):
         """
         return self._drop_rate
 
-    def is_valid_hist (self):
+    def is_valid_hist(self):
         """
         Checks if result obejct contains valid data.
 
@@ -1350,7 +1345,7 @@ class CTRexResult(object):
         """
         return self.valid
 
-    def set_valid_hist (self, valid_stat = True):
+    def set_valid_hist(self, valid_stat=True):
         """
         Sets result obejct validity status.
 
@@ -1366,7 +1361,7 @@ class CTRexResult(object):
         """
         self.valid = valid_stat
 
-    def is_done_warmup (self):
+    def is_done_warmup(self):
         """
         Checks if TRex latest results TX-rate indicates that TRex has reached its expected TX-rate.
 
@@ -1380,7 +1375,7 @@ class CTRexResult(object):
         """
         return self._done_warmup
 
-    def get_last_value (self, tree_path_to_key, regex = None):
+    def get_last_value(self, tree_path_to_key, regex=None):
         """
         A dynamic getter from the latest sampled data item stored in the result object.
 
@@ -1408,7 +1403,7 @@ class CTRexResult(object):
         else:
             return CTRexResult.__get_value_by_path(self._history[-1], tree_path_to_key, regex)
 
-    def get_value_list (self, tree_path_to_key, regex = None, filter_none = True):
+    def get_value_list(self, tree_path_to_key, regex=None, filter_none=True):
         """
         A dynamic getter from all sampled data items stored in the result object.
 
@@ -1439,9 +1434,9 @@ class CTRexResult(object):
         if not self.is_valid_hist():
             return None
         else:
-            raw_list = list( map(lambda x: CTRexResult.__get_value_by_path(x, tree_path_to_key, regex), self._history) )
+            raw_list = list(map(lambda x: CTRexResult.__get_value_by_path(x, tree_path_to_key, regex), self._history))
             if filter_none:
-                return list (filter(lambda x: x!=None, raw_list) )
+                return list(filter(lambda x: x != None, raw_list))
             else:
                 return raw_list
 
@@ -1474,8 +1469,7 @@ class CTRexResult(object):
             return -1
         return len(self.get_last_value('trex-global.data', 'opackets-\d+'))
 
-
-    def update_result_data (self, latest_dump):
+    def update_result_data(self, latest_dump):
         """
         Integrates a `latest_dump` dictionary into the CTRexResult object.
 
@@ -1491,14 +1485,16 @@ class CTRexResult(object):
         if latest_dump:
             self._history.append(latest_dump)
             if not self.valid:
-                self.valid = True 
+                self.valid = True
 
-            # parse important fields and calculate averages and others
+                # parse important fields and calculate averages and others
             if self._expected_tx_rate is None:
                 # get the expected data only once since it doesn't change
-                self._expected_tx_rate = CTRexResult.__get_value_by_path(latest_dump, "trex-global.data", "m_tx_expected_\w+")
+                self._expected_tx_rate = CTRexResult.__get_value_by_path(latest_dump, "trex-global.data",
+                                                                         "m_tx_expected_\w+")
 
-            self._current_tx_rate = CTRexResult.__get_value_by_path(latest_dump, "trex-global.data", "m_tx_(?!expected_)\w+")
+            self._current_tx_rate = CTRexResult.__get_value_by_path(latest_dump, "trex-global.data",
+                                                                    "m_tx_(?!expected_)\w+")
             if not self._done_warmup and self._expected_tx_rate is not None:
                 # check for up to 4% change between expected and actual
                 if (self._current_tx_rate['m_tx_bps'] > self.warmup_max * self._expected_tx_rate['m_tx_expected_bps']):
@@ -1513,23 +1509,23 @@ class CTRexResult(object):
                 if 'trex-latecny' in latest_dump and 'trex-latency' not in latest_dump:
                     latest_dump['trex-latency'] = latest_dump['trex-latecny']
 
-                latency_per_port         = self.get_last_value("trex-latency-v2.data", "port-")
-                self._max_latency        = self.__get_filtered_max_latency(latency_per_port, self.filtered_latency_amount)
-                self._min_latency        = self.__get_filtered_min_latency(latency_per_port) 
-                avg_latency              = self.get_last_value("trex-latency.data", "avg-")
-                self._avg_latency        = CTRexResult.__avg_all_and_rename_keys(avg_latency)
-                jitter_latency           = self.get_last_value("trex-latency.data", "jitter-")
-                self._jitter_latency        = CTRexResult.__avg_all_and_rename_keys(jitter_latency)
-                avg_win_latency_list     = self.get_value_list("trex-latency.data", "avg-")
+                latency_per_port = self.get_last_value("trex-latency-v2.data", "port-")
+                self._max_latency = self.__get_filtered_max_latency(latency_per_port, self.filtered_latency_amount)
+                self._min_latency = self.__get_filtered_min_latency(latency_per_port)
+                avg_latency = self.get_last_value("trex-latency.data", "avg-")
+                self._avg_latency = CTRexResult.__avg_all_and_rename_keys(avg_latency)
+                jitter_latency = self.get_last_value("trex-latency.data", "jitter-")
+                self._jitter_latency = CTRexResult.__avg_all_and_rename_keys(jitter_latency)
+                avg_win_latency_list = self.get_value_list("trex-latency.data", "avg-")
                 self._avg_window_latency = CTRexResult.__calc_latency_win_stats(avg_win_latency_list)
 
             tx_pkts = CTRexResult.__get_value_by_path(latest_dump, "trex-global.data.m_total_tx_pkts")
             rx_pkts = CTRexResult.__get_value_by_path(latest_dump, "trex-global.data.m_total_rx_pkts")
             if tx_pkts is not None and rx_pkts is not None:
                 self._total_drops = tx_pkts - rx_pkts
-            self._drop_rate   = CTRexResult.__get_value_by_path(latest_dump, "trex-global.data.m_rx_drop_bps")
+            self._drop_rate = CTRexResult.__get_value_by_path(latest_dump, "trex-global.data.m_rx_drop_bps")
 
-    def clear_results (self):
+    def clear_results(self):
         """
         Clears all results and sets the history's validity to `False`
 
@@ -1540,72 +1536,72 @@ class CTRexResult(object):
             None
 
         """
-        self.valid               = False
-        self._done_warmup        = False
-        self._expected_tx_rate   = None
-        self._current_tx_rate    = None
-        self._max_latency        = None
-        self._min_latency        = None
-        self._avg_latency        = None
-        self._jitter_latency     = None
+        self.valid = False
+        self._done_warmup = False
+        self._expected_tx_rate = None
+        self._current_tx_rate = None
+        self._max_latency = None
+        self._min_latency = None
+        self._avg_latency = None
+        self._jitter_latency = None
         self._avg_window_latency = None
-        self._total_drops        = None
-        self._drop_rate          = None
+        self._total_drops = None
+        self._drop_rate = None
         self._history.clear()
 
     @staticmethod
-    def __get_value_by_path (dct, tree_path, regex = None):
+    def __get_value_by_path(dct, tree_path, regex=None):
         try:
             for i, p in re.findall(r'(\d+)|([\w|-]+)', tree_path):
                 dct = dct[p or int(i)]
             if regex is not None and isinstance(dct, dict):
                 res = {}
-                for key,val in dct.items():
+                for key, val in dct.items():
                     match = re.match(regex, key)
                     if match:
-                        res[key]=val
+                        res[key] = val
                 return res
             else:
-               return dct
+                return dct
         except (KeyError, TypeError):
             return None
 
     @staticmethod
-    def __calc_latency_win_stats (latency_win_list):
-        res = {'all' : None }
-        port_dict = {'all' : []}
-        list( map(lambda x: CTRexResult.__update_port_dict(x, port_dict), latency_win_list) )
+    def __calc_latency_win_stats(latency_win_list):
+        res = {'all': None}
+        port_dict = {'all': []}
+        list(map(lambda x: CTRexResult.__update_port_dict(x, port_dict), latency_win_list))
 
         # finally, calculate everages for each list
-        res['all'] = float("%.3f" % (sum(port_dict['all'])/float(len(port_dict['all']))) )
+        res['all'] = float("%.3f" % (sum(port_dict['all']) / float(len(port_dict['all']))))
         port_dict.pop('all')
         for port, avg_list in port_dict.items():
-            res[port] = float("%.3f" % (sum(avg_list)/float(len(avg_list))) )
+            res[port] = float("%.3f" % (sum(avg_list) / float(len(avg_list))))
 
         return res
 
     @staticmethod
-    def __update_port_dict (src_avg_dict, dest_port_dict):
+    def __update_port_dict(src_avg_dict, dest_port_dict):
         all_list = src_avg_dict.values()
         dest_port_dict['all'].extend(all_list)
         for key, val in src_avg_dict.items():
             reg_res = re.match("avg-(\d+)", key)
             if reg_res:
-                tmp_key = "port"+reg_res.group(1)
+                tmp_key = "port" + reg_res.group(1)
                 if tmp_key in dest_port_dict:
                     dest_port_dict[tmp_key].append(val)
                 else:
                     dest_port_dict[tmp_key] = [val]
 
     @staticmethod
-    def __avg_all_and_rename_keys (src_dict):
-        res       = {}
-        all_list  = src_dict.values()
-        res['all'] = float("%.3f" % (sum(all_list)/float(len(all_list))) )
+    def __avg_all_and_rename_keys(src_dict):
+        res = {}
+        all_list = src_dict.values()
+        res['all'] = float("%.3f" % (sum(all_list) / float(len(all_list))))
         for key, val in src_dict.items():
             reg_res = re.match("avg-(\d+)", key)
             if reg_res:
-                tmp_key = "port"+reg_res.group(1)
+                tmp_key = "port" + reg_res.group(1)
                 res[tmp_key] = val  # don't touch original fields values
         return res
 
@@ -1620,12 +1616,10 @@ class CTRexResult(object):
                 min_port = 'min-%s' % port[5:]
                 result[min_port] = int(res)
 
-        return(result);
-
-
+        return (result);
 
     @staticmethod
-    def __get_filtered_max_latency (src_dict, filtered_latency_amount = 0.001):
+    def __get_filtered_max_latency(src_dict, filtered_latency_amount=0.001):
         result = {}
         if src_dict:
             for port, data in src_dict.items():
@@ -1636,7 +1630,7 @@ class CTRexResult(object):
                 if not len(res['histogram']):
                     result[max_port] = 0
                     continue
-                result[max_port] = 5 # if sum below will not get to filtered amount, use this value
+                result[max_port] = 5  # if sum below will not get to filtered amount, use this value
                 sum_high = 0.0
                 for elem in reversed(res['histogram']):
                     sum_high += elem['val']
@@ -1644,7 +1638,6 @@ class CTRexResult(object):
                         result[max_port] = elem['key'] + int('5' + repr(elem['key'])[2:])
                         break
         return result
-
 
     # history iterator after warmup period
     def _get_steady_state_history_iterator(self):
@@ -1657,7 +1650,6 @@ class CTRexResult(object):
                 return
         for index in range(len(self._history) - 1):
             yield self._history[index]
-
 
     def get_avg_steady_state_value(self, tree_path_to_key):
         '''
@@ -1675,7 +1667,8 @@ class CTRexResult(object):
         :raises:
             KeyError in case steady state period was not reached or tree_path_to_key was not found in result.
         '''
-        values_arr = [self.__get_value_by_path(res, tree_path_to_key) for res in self._get_steady_state_history_iterator()]
+        values_arr = [self.__get_value_by_path(res, tree_path_to_key) for res in
+                      self._get_steady_state_history_iterator()]
         values_arr = list(filter(lambda x: x is not None, values_arr))
         if not values_arr:
             raise KeyError('All the keys are None, probably wrong tree_path_to_key: %s' % tree_path_to_key)
@@ -1693,4 +1686,3 @@ if __name__ == "__main__":
     print('sleep')
     time.sleep(5)
     print('done')
-
