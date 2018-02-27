@@ -1256,9 +1256,9 @@ class CTRexResult(object):
 
         """
         if self._min_latency != None:
-            return True;
+            return True
         else:
-            return False;
+            return False
 
     def get_jitter_latency(self):
         """
