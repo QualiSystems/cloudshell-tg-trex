@@ -11,7 +11,7 @@ class DefaultCommandMode(CommandMode):
     ENTER_COMMAND = ""
     EXIT_COMMAND = ""
 
-    def __init__(self):
+    def __init__(self, password):
         """
         Initialize Default command mode, only for cases when session started not in enable mode
 
@@ -45,12 +45,12 @@ class EnableCommandMode(CommandMode):
     ENTER_COMMAND = "sudo su"
     EXIT_COMMAND = "exit"
 
-    def __init__(self):
+    def __init__(self, password):
+        """Initialize Enable command mode - root command mode for TREX Shells.
+        :param password:
         """
-        Initialize Config command mode
 
-        :param context:
-        """
+        self.password = password
 
         exit_action_map = {self.PROMPT: lambda session, logger: session.send_line("exit", logger)}
         CommandMode.__init__(self,
@@ -63,7 +63,12 @@ class EnableCommandMode(CommandMode):
                              exit_error_map=self.exit_error_map())
 
     def enter_action_map(self):
-        return OrderedDict()
+        return {
+            "[Pp]assword": lambda session, logger: session.send_line(
+                self.password, logger
+            )
+        }
+
 
     def enter_error_map(self):
         return OrderedDict()
