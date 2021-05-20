@@ -15,7 +15,7 @@ class TRexCliHandler(object):
         self.resource_address = resource_address
         self.username = username
         self.password = password
-        self.modes = CommandModeHelper.create_command_mode()
+        self.modes = CommandModeHelper.create_command_mode(password)
 
     @property
     def default_mode(self):
